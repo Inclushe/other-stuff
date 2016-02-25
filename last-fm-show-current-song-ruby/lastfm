@@ -1,0 +1,82 @@
+#!/usr/bin/env ruby
+
+require "net/https"
+require "uri"
+require "json"
+
+@user = ""
+
+def getRecentTrack
+  uri = URI.parse("https://ws.audioscrobbler.com/2.0/?method=user.getrecenttracks&user=#{@user}&api_key=934cbbbcb8da1826e9647caf1812f73e&format=json")
+  http = Net::HTTP.new(uri.host, uri.port)
+  http.use_ssl = true
+  http.verify_mode = OpenSSL::SSL::VERIFY_NONE
+  
+  request = Net::HTTP::Get.new(uri.request_uri)
+  
+  response = http.request(request)
+  @json = JSON.parse(response.body)
+  
+  if @json["recenttracks"]
+    first_track = @json["recenttracks"]["track"][0]
+    track = first_track["name"]
+    album = first_track["album"]["#text"]
+    artist = first_track["artist"]["#text"]
+    
+    lengths = []
+    lengths.push(track.length, album.length, artist.length)
+    lengths.sort!.reverse!
+    spacing = lengths[0] + 2
+    
+    if first_track["@attr"]
+      playing = true
+    else
+      playing = false
+    end
+    
+    puts
+    if playing == true
+      puts "Now Playing"
+    else
+      puts "Last Played Song"
+    end
+    puts
+    
+    unless track == ""
+      puts track.ljust(spacing) + "  \e[37mTRACK\e[0m"
+    end
+    unless album == "" || album == track || album == artist
+      puts album.ljust(spacing) + "  \e[37mALBUM\e[0m"
+    end
+    unless artist == ""
+      puts artist.ljust(spacing) + "  \e[37mARTIST\e[0m"
+    end
+    puts
+  else
+    enterUsername
+  end
+end
+
+def enterUsername
+  print "Enter your last.fm username: "
+  @user = STDIN.gets.chomp
+  File.open(".username", 'w+') {|i| i.write("#{@user}") }
+  getRecentTrack
+end
+
+if ARGV[0]
+  if (ARGV[0].downcase == "-u" || ARGV[0].downcase == "-username" || ARGV[0].downcase == "--username") && ARGV[1] && !ARGV[2]
+    @user = ARGV[1]
+    File.open(".username", 'w+') {|i| i.write("#{@user}") }
+    getRecentTrack
+  else
+    enterUsername
+  end
+else
+  if File.exists? ".username"
+    @user = File.read(".username")
+    getRecentTrack
+  else
+    enterUsername
+  end
+end
